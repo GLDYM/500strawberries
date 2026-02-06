@@ -8,6 +8,7 @@ This tool allows you to decrypt and edit 100% orange juice savefile, allowing yo
 ## Notes :
 * This is for educational / research purposes only
 * You are responsible for using this tool, anything that may happen (corrupted save, ban, data loss, etc) is your only responsibility !
+* As this works with steam and overrides your save with the modified one, please do not use it to gain advantages over other players when playing online ! (I do not knnow how this game works for online mode but keep it fair ! And if you get banned / VAC banned it is your responsability)
 * This was made as of `3.28.1.e87310a63-Windows.3003000.AMD.STEAM.RELEASE`.
 * This may break over time, and this will not be updated, if you see this tool does not work and was last updated a long time ago, it is likely outdated
 
