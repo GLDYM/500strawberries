@@ -1,0 +1,57 @@
+import sys
+import json
+from decrypt import decryptSave
+from encrypt import encryptSave
+
+def main():
+	if len(sys.argv) != 3:
+		print("usage: main.py <decrypt|encrypt> <file>")
+		sys.exit(1)
+
+	mode = sys.argv[1]
+	file = sys.argv[2]
+
+	if mode == "decrypt":
+		if not file.endswith(".ojs"):
+			raise Exception("File must be a .ojs file !")
+
+		with open(file, "rb") as f:
+			data = f.read()
+			f.close()
+
+		print(f"===== DECRYPTING {file} =====")
+		try:
+			out = decryptSave(data)
+		except Exception as e:
+			print(f"\nFAILED TO DECRYPT : {e}")
+			return
+		print(f"\nDECRYPTION DONE")
+
+		with open(f"{file.replace('.ojs', '.json')}", "w+") as f:
+			f.write(json.dumps(out, indent=4))
+			f.close()
+	elif mode == "encrypt":
+		if not file.endswith(".json"):
+			raise Exception("File must be a .json file !")
+
+		with open(file, "r") as f:
+			data = json.loads(f.read())
+			f.close()
+
+		print(f"===== ENCRYPTING {file} =====")
+		try:
+			out = encryptSave(data)
+		except Exception as e:
+			print(f"\nFAILED TO ENCRYPT : {e}")
+			return
+		print(f"\nENCRYPTION DONE")
+		
+		with open(f"{file.replace('.json', '.ojs')}", "wb") as f:
+			f.write(out)
+			f.close()
+	else:
+		print("invalid mode")
+		sys.exit(1)
+
+if __name__ == "__main__":
+	main()
