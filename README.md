@@ -70,32 +70,6 @@ treats the save as corrupted:
 | v1      | `4396a58e6493b492d58bfc94e28de48c`          |
 | v2      | `ac88b68f9d975390468b809149964890`          |
 
-That check is also why the rest of the random material has to be kept when re-encrypting
-(`main.py` reads it back from the .ojs sitting next to the .json).
-
-After decryption the payload starts with its own 8-byte LZ4 header
-(decompressed size, compressed size), then the compressed JSON.
-
-JSON is written compact and as UTF-8 (`separators=(",", ":")`,
-`ensure_ascii=False`), otherwise the file is not byte-identical to the game's.
-
-## Mixers
-
-`mixers.py` predicts the daily Co-op mixer set. It is derived from the time
-only, so it is identical for everyone, and it rolls over at 00:00 UTC-08:00
-(= 08:00 UTC).
-
-    python mixers.py              # today
-    python mixers.py 2026-11-14   # a specific UTC-08:00 date
-
-The game seeds a modified MT19937 with the current day's 08:00 UTC timestamp,
-Fisher-Yates shuffles `[0 .. 32]`, then keeps 2 or 3 entries. The module
-docstring lists the exact steps; it reproduces `2026-11-14 -> Defensive Heroes,
-Bomber, Miracle`.
-
-Note: 3.29.x has 33 mixers; older versions had fewer, so historical dates from
-before the update may not match.
-
 ## Dumping from memory
 
 Hook `0xC89680` and save onEnter's arg0 then on leave get size of array from pointer and read. Example frida script : 
@@ -242,6 +216,23 @@ uint32_t CRC32(
 Return
 * `uint32_t` → CRC value
 
-# Credits
+## Additional: Mixers
+
+`mixers.py` predicts the daily Co-op mixer set. It is derived from the time
+only, so it is identical for everyone, and it rolls over at 00:00 UTC-08:00
+(= 08:00 UTC).
+
+    python mixers.py              # today
+    python mixers.py 2026-11-14   # a specific UTC-08:00 date
+
+The game seeds a modified MT19937 with the current day's 08:00 UTC timestamp,
+Fisher-Yates shuffles `[0 .. 32]`, then keeps 2 or 3 entries. The module
+docstring lists the exact steps; it reproduces `2026-11-14 -> Defensive Heroes,
+Bomber, Miracle`.
+
+Note: 3.29.x has 33 mixers; older versions had fewer, so historical dates from
+before the update may not match.
+
+# Creditss
 
 If you like this project, feel free to leave a star, and check out my other stuff. And if you use it, feel free to credit <3
