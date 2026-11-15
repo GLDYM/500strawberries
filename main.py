@@ -1,6 +1,7 @@
+import os
 import sys
 import json
-from decrypt import decryptSave
+from decrypt import decryptSave, readCrypto
 from encrypt import encryptSave
 
 def main():
@@ -27,20 +28,33 @@ def main():
 			return
 		print(f"\nDECRYPTION DONE")
 
-		with open(f"{file.replace('.ojs', '.json')}", "w+") as f:
+		with open(f"{file.replace('.ojs', '.json')}", "w+", encoding="utf-8") as f:
 			f.write(json.dumps(out, indent=4))
 			f.close()
 	elif mode == "encrypt":
 		if not file.endswith(".json"):
 			raise Exception("File must be a .json file !")
 
-		with open(file, "r") as f:
+		with open(file, "r", encoding="utf-8") as f:
 			data = json.loads(f.read())
 			f.close()
 
 		print(f"===== ENCRYPTING {file} =====")
+
+		# the crypto material must stay the same as the original save, so read it
+		# back from the .ojs sitting next to the .json (the one we are replacing)
+		crypto = None
+		src = f"{file[:-len('.json')]}.ojs"
+		if os.path.exists(src):
+			with open(src, "rb") as f:
+				crypto = readCrypto(f.read())
+			if crypto is None:
+				print(f"! no valid crypto material in {src}, generating a new one")
+		else:
+			print(f"! {src} not found, generating new crypto material")
+
 		try:
-			out = encryptSave(data)
+			out = encryptSave(data, crypto)
 		except Exception as e:
 			print(f"\nFAILED TO ENCRYPT : {e}")
 			return

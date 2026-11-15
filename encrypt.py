@@ -6,12 +6,14 @@ import hashlib
 import lz4.block
 from mt import init_mt, prng_iter
 from common import crc, compute_rounds, array_cipher
+from decrypt import FORMATS, DEFAULT_FORMAT, triangleIndices, extractConst
 
-def encryptSave(jsonData):
+def encryptSave(jsonData, crypto=None):
 	lz4_payload = bytearray()
 
 	### LZ4 ###
-	save = json.dumps(jsonData).encode("utf-8")
+	# must match the game's serializer exactly, otherwise bytes (and file size) differ
+	save = json.dumps(jsonData, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 	# must follow this config to respect game's lz4
 	compressed = lz4.block.compress(save, store_size=False, mode='default', compression=0)
@@ -25,11 +27,29 @@ def encryptSave(jsonData):
 	lz4_payload += compressed_size.to_bytes(4, "little")
 	lz4_payload += compressed
 
+	### FORMAT ###
+	format_name = crypto["format"] if crypto else DEFAULT_FORMAT
+	if format_name not in FORMATS:
+		raise Exception(f"> unknown save format : {format_name}")
+
+	format = FORMATS[format_name]
+	km_size = format["key_material_size"]
+	idx = triangleIndices(format["step"], 16)
+
+	print(f"* format : {format_name} (key material {km_size} bytes)")
+
 	### ENCRYPT ###
-	nonce = os.urandom(12)
+	if crypto is None:
+		nonce = os.urandom(12)
+		chacha_const = format["const"]
+		chacha_key = os.urandom(32)
+	else:
+		# reuse the original file's material : it must stay consistent with it
+		nonce = bytes(crypto["nonce"])
+		chacha_const = bytes(crypto["chacha_const"])
+		chacha_key = bytes(crypto["chacha_key"])
+
 	original_nonce = nonce
-	chacha_const = os.urandom(16)
-	chacha_key = os.urandom(32)
 
 	print(f"\n* nonce : {nonce.hex()}")
 	print(f"* chacha const : {chacha_const.hex()}")
@@ -55,7 +75,10 @@ def encryptSave(jsonData):
 	array_cipher(enc, chacha_const, chacha_key, nonce, mt)
 
 	### HMAC ###
-	hmac_key = os.urandom(64)
+	if crypto is None:
+		hmac_key = os.urandom(64)
+	else:
+		hmac_key = bytes(crypto["hmac_key"])
 
 	hmac_payload = bytearray()
 	hmac_payload += hmac_key
@@ -68,8 +91,15 @@ def encryptSave(jsonData):
 	hmac_payload += hmac_val
 
 	### KEY MATERIAL ###
-	key_material = bytearray(os.urandom(255))
-	idx = [1,3,6,10,15,21,28,36,45,55,66,78,91,105,120,136]
+	if crypto is None:
+		key_material = bytearray(os.urandom(km_size))
+	else:
+		key_material = bytearray(crypto["key_material"])
+
+	if len(key_material) != km_size:
+		raise Exception(f"> key material must be {km_size} bytes for {format_name}")
+
+	# the game checks these bytes against a hardcoded const
 	for i, val in zip(idx, chacha_const):
 		key_material[i] = val
 

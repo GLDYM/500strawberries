@@ -9,7 +9,7 @@ This tool allows you to decrypt and edit 100% orange juice savefile, allowing yo
 * This is for educational / research purposes only
 * You are responsible for using this tool, anything that may happen (corrupted save, ban, data loss, etc) is your only responsibility !
 * As this works with steam and overrides your save with the modified one, please do not use it to gain advantages over other players when playing online ! (I do not knnow how this game works for online mode but keep it fair ! And if you get banned / VAC banned it is your responsability)
-* This was made as of `3.28.1.e87310a63-Windows.3003000.AMD.STEAM.RELEASE`.
+* This was made as of `3.29.2.0` (v2 container), `3.28.1` saves still load (v1 container).
 * This may break over time, and this will not be updated, if you see this tool does not work and was last updated a long time ago, it is likely outdated
 
 # Usage
@@ -32,18 +32,69 @@ this is for people interested in expanding / updating the tool, giving research 
 
 ## Save file structure
 
-| Offset   | Size | Name                     |
-|----------|------|--------------------------|
-| 0x000    | 4    | CRC32                    |
-| 0x004    | 255  | ChaCha Key Material      |
-| 0x103    | 4    | Payload Size             |
-| 0x107    | 64   | HMAC Key                 |
-| 0x147    | 12   | ChaCha Nonce Seed        |
-| 0x153    | 32   | ChaCha Key               |
-| 0x173    | 4    | Decompressed Size        |
-| 0x177    | 4    | Compressed Size (N)      |
-| 0x17B    | N    | LZ4 Compressed JSON      |
-| 0x17B+N  | 32   | HMAC Hex Digest          |
+Two container versions exist. The tool auto-detects which one a file uses.
+
+* **v1** — 3.28.x and older: key material is 255 bytes (`0xFF`).
+* **v2** — 3.29.x and newer: key material is expanded to 65535 bytes (`0xFFFF`).
+
+| Offset     | Size | Name                     |
+|------------|------|--------------------------|
+| 0x000      | 4    | CRC32 (over everything after it) |
+| 0x004      | K    | ChaCha Key Material      |
+| 0x004+K    | 4    | Payload Size (N)         |
+| 0x008+K    | 64   | HMAC Key                 |
+| 0x048+K    | 12   | ChaCha Nonce Seed        |
+| 0x054+K    | 32   | ChaCha Key               |
+| 0x074+K    | 4    | Decompressed Size        |
+| 0x078+K    | 4    | Compressed Size (M)      |
+| 0x07C+K    | M    | LZ4 Compressed JSON      |
+| 0x07C+K+M  | 32   | HMAC digest              |
+
+`K` = 0xFF (v1) or 0xFFFF (v2); for v1 these are the offsets in the table above.
+
+### How K is used
+
+The 16-byte ChaCha constant is *not* stored contiguously. It is scattered over the key
+material at triangular indices starting at 1:
+
+| Version | Spread indices (first ones)                                  |
+|---------|--------------------------------------------------------------|
+| v1      | 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91, 105, 120, 136 |
+| v2      | 1, 7, 18, 34, 55, 81, 112, 148, 189, 235, 286, 342, 403, 469, 540, 616 |
+
+The resulting 16 bytes must match a constant hardcoded in the exe, otherwise the game
+treats the save as corrupted:
+
+| Version | Expected constant (hex)                   |
+|---------|-------------------------------------------|
+| v1      | `4396a58e6493b492d58bfc94e28de48c`          |
+| v2      | `ac88b68f9d975390468b809149964890`          |
+
+That check is also why the rest of the random material has to be kept when re-encrypting
+(`main.py` reads it back from the .ojs sitting next to the .json).
+
+After decryption the payload starts with its own 8-byte LZ4 header
+(decompressed size, compressed size), then the compressed JSON.
+
+JSON is written compact and as UTF-8 (`separators=(",", ":")`,
+`ensure_ascii=False`), otherwise the file is not byte-identical to the game's.
+
+## Mixers
+
+`mixers.py` predicts the daily Co-op mixer set. It is derived from the time
+only, so it is identical for everyone, and it rolls over at 00:00 UTC-08:00
+(= 08:00 UTC).
+
+    python mixers.py              # today
+    python mixers.py 2026-11-14   # a specific UTC-08:00 date
+
+The game seeds a modified MT19937 with the current day's 08:00 UTC timestamp,
+Fisher-Yates shuffles `[0 .. 32]`, then keeps 2 or 3 entries. The module
+docstring lists the exact steps; it reproduces `2026-11-14 -> Defensive Heroes,
+Bomber, Miracle`.
+
+Note: 3.29.x has 33 mixers; older versions had fewer, so historical dates from
+before the update may not match.
 
 ## Dumping from memory
 
